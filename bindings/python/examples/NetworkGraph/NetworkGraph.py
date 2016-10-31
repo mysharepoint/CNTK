@@ -1,13 +1,31 @@
 # Copyright (c) Microsoft. All rights reserved.
+
 # Licensed under the MIT license. See LICENSE.md file in the project root
 # for full license information.
 # ==============================================================================
+
+import numpy as np
+import sys
+import os
+from cntk import Trainer
+from cntk.io import MinibatchSource, CTFDeserializer, StreamDef, StreamDefs, INFINITELY_REPEAT, FULL_DATA_SWEEP
+from cntk.device import cpu, set_default_device
+from cntk.ops import input_variable, cross_entropy_with_softmax, classification_error, relu, element_times, constant
+from examples.common.nn import fully_connected_classifier_net, print_training_progress
+
 
 def graph_to_png(node,path):
     '''
     Generic function that walks through every node of the graph starting at ``node``,
     creates a network graph, and saves it under ``path`` in PNG format. 
-    Pydot_ng package is required.
+    
+    
+    Requirements: Pydot and Graphviz
+
+    conda install pydot-ng
+    conda install graphviz
+    setx PATH "[cntk conda env path]\Library\bin\graphviz;%PATH%"
+
     Args:
         node (graph node): the node to start the journey from
         path (`str`): destination folder
@@ -83,7 +101,8 @@ def graph_to_string(node):
         node (graph node): the node to start the journey from
 
     Returns:
-        `str` describing network structure in the following format:
+        `str` describing network structure where each line is
+        in the following format:
         OperatorName(Input1.uid, Input2.uid, ...) -> Output.uid
     '''
 
@@ -133,3 +152,28 @@ def graph_to_string(node):
 
     # return lines in reversed order
     return "\n".join(model.split("\n")[::-1])
+
+
+abs_path = os.path.dirname(os.path.abspath(__file__))
+
+input_dim = 784
+num_output_classes = 10
+num_hidden_layers = 1
+hidden_layers_dim = 200
+
+# input variables denoting the features and label data
+input = input_variable(input_dim, np.float32)
+label = input_variable(num_output_classes, np.float32)
+
+# instantiate the feedforward classification model
+scaled_input = element_times(constant(0.00390625), input)
+netout = fully_connected_classifier_net(
+    scaled_input, num_output_classes, hidden_layers_dim, num_hidden_layers, relu)
+
+# save network graph in the PNG format 
+graph_to_png(netout, abs_path)
+
+# get network structure as a string
+model = graph_to_string(netout)
+
+print(model)
