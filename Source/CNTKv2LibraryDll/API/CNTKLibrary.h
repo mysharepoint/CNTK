@@ -1360,6 +1360,9 @@ namespace CNTK
         friend CNTK_API std::istream& operator>>(std::istream& stream, DictionaryValue& us);
         friend CNTK_API std::ostream& operator<<(std::ostream& stream, const DictionaryValue& us);
 
+        CNTK_API void Save(const std::wstring& filename);
+        CNTK_API static DictionaryValue Load(const std::wstring& filename);
+
     private:
         template <typename T>
         static Type GetValueType()
@@ -1484,8 +1487,13 @@ namespace CNTK
         ConstDictionaryIterator end() const { return m_dictionaryData->end(); }
         ConstDictionaryIterator cend() const { return m_dictionaryData->cend(); }
 
+        size_t Size() { return m_dictionaryData->size();  }
+
         friend CNTK_API std::istream& operator>>(std::istream& stream, Dictionary& us);
         friend CNTK_API std::ostream& operator<<(std::ostream& stream, const Dictionary& us);
+
+        CNTK_API void Save(const std::wstring& filename);
+        CNTK_API static Dictionary Load(const std::wstring& filename);
 
     private:
         std::shared_ptr<std::unordered_map<std::wstring, DictionaryValue>> m_dictionaryData;
