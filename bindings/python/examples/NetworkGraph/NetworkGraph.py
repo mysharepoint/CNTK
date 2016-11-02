@@ -14,13 +14,14 @@ from cntk.ops import input_variable, cross_entropy_with_softmax, classification_
 from examples.common.nn import fully_connected_classifier_net, print_training_progress
 
 
-def graph_to_png(node,path):
+def output_function_graph(node,png_flag=0,path=None):
     '''
     Generic function that walks through every node of the graph starting at ``node``,
-    creates a network graph, and saves it under ``path`` in PNG format. 
+    creates a network graph, and saves it as a string. If pydot_ng module is 
+    installed the graph can be saved under ``path`` in the PNG format. 
     
     
-    Requirements: Pydot and Graphviz
+    Requirements for PNG output: Pydot and Graphviz
 
     conda install pydot-ng
     conda install graphviz
@@ -28,21 +29,34 @@ def graph_to_png(node,path):
 
     Args:
         node (graph node): the node to start the journey from
-        path (`str`): destination folder
+        png_flag (`bool`, optional): saves to PNG if `True`
+        path (`str`, optional): destination folder
 
     Returns:
-        Pydot object containing all nodes and edges
+        `str` containing all nodes and edges
     '''
-    import pydot_ng as pydot
-    
+   
     # walk every node
     visitor = lambda x: True
 
-    # initialize a dot object to store vertices and edges
-    dot_object = pydot.Dot(graph_name="network_graph",rankdir='TB')
-    dot_object.set_node_defaults(shape='rectangle', fixedsize='false',
-                             height=.85, width=.85, fontsize=12)
-    dot_object.set_edge_defaults(fontsize=10)
+    if (png_flag):
+
+        try:
+            import pydot_ng as pydot
+        except ImportError:
+            raise ImportError("PNG format requires pydot_ng package. Unable to import pydot_ng.")
+
+        if (path==None):
+            raise ValueError("Destination folder is not specified. Expected arguments: output_function_graph(node,png_flag,path)")
+
+        # initialize a dot object to store vertices and edges
+        dot_object = pydot.Dot(graph_name="network_graph",rankdir='TB')
+        dot_object.set_node_defaults(shape='rectangle', fixedsize='false',
+                                 height=.85, width=.85, fontsize=12)
+        dot_object.set_edge_defaults(fontsize=10)
+    
+    # string to store model 
+    model = ''
 
     # walk the graph iteratively
     stack = [node]
@@ -61,20 +75,32 @@ def graph_to_png(node,path):
             stack.extend(node.inputs)
 
             # add current node
-            cur_node = pydot.Node(node.op_name+' '+node.uid, label=node.op_name,shape='circle',
-                                    fixedsize='true', height=1, width=1)
-            dot_object.add_node(cur_node)
+            model += node.op_name + '('
+            if (png_flag):
+                cur_node = pydot.Node(node.op_name+' '+node.uid,label=node.op_name,shape='circle',
+                                        fixedsize='true', height=1, width=1)
+                dot_object.add_node(cur_node)
 
             # add node's inputs
-            for child in node.inputs:
-                child_node = pydot.Node(child.uid)#,shape="rectangle")#,label=child.name)
-                dot_object.add_node(child_node)
-                dot_object.add_edge(pydot.Edge(child_node, cur_node,label=str(child.shape)))
+            for i in range(len(node.inputs)):
+                child = node.inputs[i]
+                
+                model += child.uid
+                if (i != len(node.inputs) - 1):
+                    model += ", "
+
+                if (png_flag):
+                    child_node = pydot.Node(child.uid)
+                    dot_object.add_node(child_node)
+                    dot_object.add_edge(pydot.Edge(child_node, cur_node,label=str(child.shape)))
 
             # ad node's output
-            out_node = pydot.Node(node.outputs[0].uid)#,shape="rectangle")#,label=node.outputs[0].name)
-            dot_object.add_node(out_node)
-            dot_object.add_edge(pydot.Edge(cur_node,out_node,label=str(node.outputs[0].shape)))
+            model += ") -> " + node.outputs[0].uid +'\n'
+
+            if (png_flag):
+                out_node = pydot.Node(node.outputs[0].uid)
+                dot_object.add_node(out_node)
+                dot_object.add_edge(pydot.Edge(cur_node,out_node,label=str(node.outputs[0].shape)))
 
         except AttributeError:
             # OutputVariable node
@@ -88,70 +114,12 @@ def graph_to_png(node,path):
         accum.append(node)
 
     # save to png
-    dot_object.write_png(path + '\\network_graph.png', prog='dot')
-
-    return dot_object
-
-
-def graph_to_string(node):
-    '''
-    Generic function that walks through every node of the graph starting at ``node``
-    and dumps the network structure to `str` 
-    Args:
-        node (graph node): the node to start the journey from
-
-    Returns:
-        `str` describing network structure where each line is
-        in the following format:
-        OperatorName(Input1.uid, Input2.uid, ...) -> Output.uid
-    '''
-
-    # walk every node
-    visitor = lambda x: True
-    
-    model = ''
-
-    stack = [node]
-    accum = []
-    visited = set()
-
-    while stack:
-        node = stack.pop()
-        if node in visited:
-            continue
-
-        try:
-            # Function node
-            stack.extend(node.root_function.inputs)
-
-            # add current node operator
-            model += node.root_function.op_name + '('
-
-            # add inputs
-            for i in range(len(node.root_function.inputs)):
-                
-                model += node.root_function.inputs[i].uid
-                if (i != len(node.root_function.inputs) - 1):
-                    model += ", "
-
-            # add output
-            model += ") -> " + node.outputs[0].uid +'\n'
-        except AttributeError:
-            
-            # OutputVariable node
-            try:
-                if node.is_output:
-                    stack.append(node.owner)
-            except AttributeError:
-                pass
-
-        if visitor(node):
-            accum.append(node)
-
-        visited.add(node)
+    if (png_flag):
+        dot_object.write_png(path + '\\network_graph.png', prog='dot')
 
     # return lines in reversed order
     return "\n".join(model.split("\n")[::-1])
+
 
 
 abs_path = os.path.dirname(os.path.abspath(__file__))
@@ -171,9 +139,6 @@ netout = fully_connected_classifier_net(
     scaled_input, num_output_classes, hidden_layers_dim, num_hidden_layers, relu)
 
 # save network graph in the PNG format 
-graph_to_png(netout, abs_path)
-
-# get network structure as a string
-model = graph_to_string(netout)
+model = output_function_graph(netout,1,abs_path)
 
 print(model)
