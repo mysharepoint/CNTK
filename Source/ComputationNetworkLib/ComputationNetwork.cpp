@@ -29,6 +29,9 @@
 
 using namespace std;
 
+// TODO: Remove this global variable. This is for saving temporary files locally, a workaround solution for slow HDFS FUSE on philly.
+bool saveTempLocal(false);
+
 namespace Microsoft { namespace MSR { namespace CNTK {
 
 // -----------------------------------------------------------------------
@@ -98,6 +101,16 @@ void ComputationNetwork::Save(const wstring& fileName, const FileOptions fileFor
     // Saving into temporary file and then renaming it to the requested fileName
     // This is a standard trick to avoid havign corrupted model files if process dies during writing
     wstring tmpFileName = fileName + L".tmp";
+
+    if (saveTempLocal)
+    {
+#ifdef _WIN32
+        tmpFileName = L"C:\\Windows\\Temp\\" + tmpFileName;
+#else
+        tmpFileName = L"/tmp/" + tmpFileName;
+#endif
+    }
+
     SaveToFileImpl(tmpFileName, fileFormat);
     renameOrDie(tmpFileName, fileName);
 }
